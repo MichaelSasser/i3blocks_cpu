@@ -1,3 +1,21 @@
+/*
+ * i3blocks-cpu - A CPU block for i3blocks
+ * Copyright (c) 2020  Michael Sasser <Michael@MichaelSasser.org>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 use std::fs;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -31,23 +49,16 @@ impl Default for CpuData {
 }
 
 fn get_cpu_temp() -> f32 {
-    // Get dir name
-
-    // .map(|res| res.map(|e| e.path()))
-    // .collect::<Result<Vec<_>, io::Error>>()?;
-
-    // get temp
     let mut temp: f32 = 0.0;
-    // Get Temperature
-    //
+
     let directory = "/sys/devices/platform/coretemp.0/hwmon/";
     if let Ok(dirs) = fs::read_dir(directory) {
         for dir in dirs {
             if let Ok(dir) = dir {
                 if let Ok(entries) = fs::read_dir(dir.path()) {
                     for entry in entries {
+                        // `entry` is a `DirEntry`.
                         if let Ok(entry) = entry {
-                            // Here, `entry` is a `DirEntry`.
                             // println!("{:?}", entry.file_name());
                             let filename = match entry.file_name().into_string() {
                                 Ok(f) => f,
@@ -62,7 +73,7 @@ fn get_cpu_temp() -> f32 {
                                 let data = fs::read_to_string(
                                     format!("{}{}/{}", directory, filepath, filename).as_str(),
                                 )
-                                .expect("Unable to read from /sys/class/power_supply/BAT0/uevent");
+                                .expect("Unable to read from /sys/devices/platform/...");
                                 let value =
                                     data.as_str().trim().parse::<f32>().expect("0.0") / 1000.0;
                                 if temp < value {
@@ -79,7 +90,8 @@ fn get_cpu_temp() -> f32 {
 }
 
 fn get_cpu_load() -> CpuData {
-    // Get CPU in percent: https://github.com/Leo-G/DevopsWiki/wiki/How-Linux-CPU-Usage-Time-and-Percentage-is-calculated
+    // Get CPU in percent:
+    // https://github.com/Leo-G/DevopsWiki/wiki/How-Linux-CPU-Usage-Time-and-Percentage-is-calculated
     let file = match fs::File::open("/proc/stat") {
         Ok(file) => file,
         Err(_) => panic!("Unable to read from /proc/stat"),
@@ -91,8 +103,10 @@ fn get_cpu_load() -> CpuData {
         .read_line(&mut cpu_line)
         .expect("Unable to read line.");
 
-    // user nice system idle iowait  irq  softirq steal guest guest_nice
-    // 2    3    4      5    6       7    8       9     10    11
+    /*
+     * user nice system idle iowait  irq  softirq steal guest guest_nice
+     * 2    3    4      5    6       7    8       9     10    11
+     */
     let tokens: Vec<&str> = cpu_line.split(" ").collect();
     let user = tokens[2].parse::<i32>().expect("0");
     let nice = tokens[3].parse::<i32>().expect("0");
@@ -107,7 +121,6 @@ fn get_cpu_load() -> CpuData {
         cidle: (idle + iowait) as f32,
     };
     return cpu;
-    // let cpu_persentage = (cpu.ctime - cpu.cidle) / cpu.ctime * 100.0;
 }
 
 fn main() -> std::io::Result<()> {
@@ -119,7 +132,6 @@ fn main() -> std::io::Result<()> {
         let cpu_persentage = (cpu.ctime - cpu.cidle) / cpu.ctime * 100.0;
 
         // println!("'{:?}'", tokens);
-        // Print
         println!("{: >6.2}% {}°C", cpu_persentage, temp);
         old_load = load;
         thread::sleep(time::Duration::from_secs(1));
