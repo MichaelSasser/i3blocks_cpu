@@ -1,6 +1,6 @@
 # i3blocks-cpu
 
-This is CPU block for i3blocks written as beginner project in Rust.
+This is a CPU block for i3blocks written as beginner project in Rust.
 It shows your CPU in percent and the temperature in a fixed length:
 
 The output looks like:
@@ -20,7 +20,7 @@ Use cargo to build the project.
 cargo build --release
 ```
 
-You clould also use cargo to test the project.
+You could also use cargo to test the project.
 
 ```
 cargo run
@@ -43,5 +43,3 @@ GNU General Public License for more details.<br/>
 <br/>
 You should have received a copy of the GNU General Public License<br/>
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
