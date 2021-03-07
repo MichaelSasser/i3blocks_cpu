@@ -86,7 +86,7 @@ fn get_cpu_temp() -> f32 {
             }
         }
     }
-    return temp;
+    temp
 }
 
 fn get_cpu_load() -> CpuData {
