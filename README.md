@@ -1,4 +1,4 @@
-# i3blocks-cpu
+# i3blocks_cpu
 
 This is a CPU block for i3blocks written as beginner project in Rust.
 It shows your CPU in percent and the temperature in a fixed length:
@@ -20,26 +20,26 @@ Use cargo to build the project.
 cargo build --release
 ```
 
-You could also use cargo to test the project.
+The executable is now located in `./target/release/i3blocks_cpu`
 
-```
-cargo run
-```
+## Semantic Versioning
+
+This repository uses [SemVer](https://semver.org/) for its release
+cycle.
+
+## Branching Model
+
+This repository uses the
+[git-flow](https://danielkummer.github.io/git-flow-cheatsheet/index.html)
+branching model by [Vincent Driessen](https://nvie.com/about/).
+It has two branches with infinite lifetime:
+
+* [master](https://github.com/MichaelSasser/i3blocks_cpu/tree/master)
+* [develop](https://github.com/MichaelSasser/i3blocks_cpu/tree/develop)
+
+The master branch gets updated on every release. The develop branch is the
+merging branch.
 
 ## License
-
-i3blocks-cpu - A CPU block for i3blocks<br/>
-Copyright (c) 2020  Michael Sasser <Michael@MichaelSasser.org><br/>
-<br/>
-This program is free software: you can redistribute it and/or modify<br/>
-it under the terms of the GNU General Public License as published by<br/>
-the Free Software Foundation, either version 3 of the License, or<br/>
-(at your option) any later version.<br/>
-<br/>
-This program is distributed in the hope that it will be useful,<br/>
-but WITHOUT ANY WARRANTY; without even the implied warranty of<br/>
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the<br/>
-GNU General Public License for more details.<br/>
-<br/>
-You should have received a copy of the GNU General Public License<br/>
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+Copyright &copy; 2020-2021 Michael Sasser <Info@MichaelSasser.org>. 
+Released under the GPLv3 license.

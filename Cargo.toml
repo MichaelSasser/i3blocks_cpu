@@ -1,24 +1,14 @@
-# i3blocks-cpu - A CPU block for i3blocks
-# Copyright (c) 2020  Michael Sasser <Michael@MichaelSasser.org>
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 [package]
 name = "cpu"
 version = "1.0.0"
 authors = ["Michael Sasser <Michael@MichaelSasser.org>"]
 edition = "2018"
+description = "Show the cpu status in i3blocks"
+repository = "https://github.com/MichaelSasser/i3blocks_cpu/"
+license = "GPL-3.0-or-later"
+keywords = ["cpu", "sway", "swaybar", "i3bar", "i3"]
+categories = ["visualization"]
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
