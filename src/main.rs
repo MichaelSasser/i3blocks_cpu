@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#![crate_name = "i3blocks_cpu"]
 
 use std::fs;
 use std::io::prelude::*;
@@ -48,6 +49,7 @@ impl Default for CpuData {
     }
 }
 
+/// Get the CPU temperature.
 fn get_cpu_temp() -> f32 {
     let mut temp: f32 = 0.0;
 
@@ -89,9 +91,11 @@ fn get_cpu_temp() -> f32 {
     temp
 }
 
+/// Get the CPU load in percent.
+///
+/// The load is calculated like:
+/// https://github.com/Leo-G/DevopsWiki/wiki/How-Linux-CPU-Usage-Time-and-Percentage-is-calculated
 fn get_cpu_load() -> CpuData {
-    // Get CPU in percent:
-    // https://github.com/Leo-G/DevopsWiki/wiki/How-Linux-CPU-Usage-Time-and-Percentage-is-calculated
     let file = match fs::File::open("/proc/stat") {
         Ok(file) => file,
         Err(_) => panic!("Unable to read from /proc/stat"),

@@ -1,5 +1,5 @@
 [package]
-name = "cpu"
+name = "i3blocks_cpu"
 version = "1.0.0"
 authors = ["Michael Sasser <Michael@MichaelSasser.org>"]
 edition = "2018"
