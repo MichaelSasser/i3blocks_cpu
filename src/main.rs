@@ -17,126 +17,192 @@
  */
 #![crate_name = "i3blocks_cpu"]
 
-use std::fs;
-use std::io::prelude::*;
-use std::io::BufReader;
+use anyhow::Result;
 use std::ops::Sub;
-use async_std::prelude::*;
-use async_std::stream;
 use std::time::Duration;
+use tokio::fs::{read_dir, File};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-static CPU_TEMP_DIRECTORY: &str = "/sys/devices/platform/coretemp.0/hwmon/";
-static CPU_LOAD_FILE: &str = "/proc/stat";
+const CPU_TEMPERATURE_DIRECTORY: &str = "/sys/devices/platform/coretemp.0/hwmon/";
+const CPU_LOAD_FILE: &str = "/proc/stat";
 
-#[derive(Clone)]
-struct CpuData {
+#[derive(Clone, Copy, Default)]
+struct CpuLoadData {
     ctime: f32,
     cidle: f32,
 }
 
-impl Sub for CpuData {
-    type Output = CpuData;
+impl Sub for CpuLoadData {
+    type Output = CpuLoadData;
 
-    fn sub(self, other: CpuData) -> CpuData {
-        CpuData {
+    fn sub(self, other: CpuLoadData) -> CpuLoadData {
+        CpuLoadData {
             ctime: self.ctime - other.ctime,
             cidle: self.cidle - other.cidle,
         }
     }
 }
 
-impl Default for CpuData {
-    fn default() -> CpuData {
-        CpuData {
-            cidle: 0.0,
-            ctime: 0.0,
-        }
+impl CpuLoadData {
+    fn replace(&mut self, other: Self) -> Self {
+        let buf = *self;
+        *self = other;
+        buf
     }
 }
 
-/// Get the CPU temperature.
-fn get_cpu_temp() -> f32 {
-    let mut temp: f32 = 0.0;
-    if let Ok(dirs) = fs::read_dir(CPU_TEMP_DIRECTORY) {
-        for dir in dirs.flatten() {
-            if let Ok(entries) = fs::read_dir(dir.path()) {
-                // `entry` is a `DirEntry`.
-                for entry in entries.flatten() {
-                    // println!("{:?}", entry.file_name());
-                    let filename = match entry.file_name().into_string() {
-                        Ok(f) => f,
-                        Err(_) => String::from(""),
-                    };
-                    let filepath = match dir.file_name().into_string() {
-                        Ok(f) => f,
-                        Err(_) => String::from(""),
-                    };
-                    // println!("{:?}, {:?}, {:?}", DIRECTORY, filepath, filename);
-                    if filename.ends_with("input") {
-                        let data = fs::read_to_string(
-                            format!("{}{}/{}", CPU_TEMP_DIRECTORY, filepath, filename).as_str(),
-                        )
-                        .expect("Unable to read from /sys/devices/platform/...");
-                        let value = data.as_str().trim().parse::<f32>().expect("0.0") / 1000.0;
-                        if temp < value {
-                            temp = value;
+struct CpuLoad {
+    file: File,
+    buf: String,
+    data: CpuLoadData,
+    prev_data: CpuLoadData,
+}
+
+impl CpuLoad {
+    async fn new(path: &str) -> Self {
+        let file = File::open(path)
+            .await
+            .unwrap_or_else(|_| panic!("Unable to read from {}", &path));
+
+        Self {
+            file,
+            buf: String::new(),
+            data: CpuLoadData {
+                ctime: 0_f32,
+                cidle: 0_f32,
+            },
+            prev_data: CpuLoadData {
+                ctime: 0_f32,
+                cidle: 0_f32,
+            },
+        }
+    }
+
+    async fn read_data(&mut self) -> Result<()> {
+        // let mut buffer = BufReader::new(file);
+
+        self.file.read_to_string(&mut self.buf).await?;
+
+        /*
+         *       user nice system idle iowait  irq  softirq steal guest guest_nice
+         * file  2    3    4      5    6       7    8       9     10    11
+         * here  0    1    2      3    4       5    6       7     8     9
+         */
+        let tokens = self
+            .buf
+            .split(' ')
+            .collect::<Vec<&str>>()
+            .iter()
+            .take(10)
+            .skip(2)
+            .map(|s| s.parse::<i32>().expect("0"))
+            .collect::<Vec<i32>>();
+
+        self.prev_data = self.data.replace(CpuLoadData {
+            ctime: (tokens.iter().sum::<i32>()) as f32,
+            cidle: (tokens[3] + tokens[4]) as f32,
+        });
+
+        // Cleanup
+        self.buf.clear();
+        self.file.rewind().await?;
+
+        Ok(())
+    }
+
+    fn in_percent(&self) -> f32 {
+        let data = self.data - self.prev_data;
+
+        (data.ctime - data.cidle) / data.ctime * 100_f32
+    }
+}
+
+struct CpuTemperature {
+    files: Vec<File>,
+    buf: String,
+    data: f32,
+}
+
+impl CpuTemperature {
+    /// Get the CPU temperature.
+    async fn find_files(path: &str) -> Self {
+        let mut files: Vec<File> = Vec::new();
+        if let Ok(mut dirs) = read_dir(path).await {
+            while let Ok(dir) = dirs.next_entry().await {
+                if let Some(dir) = dir {
+                    if let Ok(mut entries) = read_dir(dir.path()).await {
+                        while let Ok(entry) = entries.next_entry().await {
+                            if let Some(entry) = entry {
+                                let filename =
+                                    entry.file_name().into_string().unwrap_or_else(|_| {
+                                        panic!("Unable to read filename from entry {:?}", entry)
+                                    });
+                                let filepath = dir.file_name().into_string().unwrap_or_else(|_| {
+                                    panic!("Unable to read file_path from dir {:?}", dir)
+                                });
+                                if filename.ends_with("input") {
+                                    let path = format!(
+                                        "{}{}/{}",
+                                        CPU_TEMPERATURE_DIRECTORY, filepath, filename
+                                    );
+                                    files.push(File::open(&path).await.unwrap_or_else(|_| {
+                                        panic!("Unable to read from {}", &path)
+                                    }));
+                                }
+                            } else {
+                                break;
+                            }
                         }
                     }
+                } else {
+                    break;
                 }
             }
         }
+        Self {
+            data: 0_f32,
+            files,
+            buf: String::new(),
+        }
     }
-    temp
-}
 
-/// Get the CPU load in percent.
-///
-/// The load is calculated like:
-/// https://github.com/Leo-G/DevopsWiki/wiki/How-Linux-CPU-Usage-Time-and-Percentage-is-calculated
-fn get_cpu_load() -> CpuData {
-    let file = match fs::File::open(CPU_LOAD_FILE) {
-        Ok(file) => file,
-        Err(_) => panic!("Unable to read from {}", CPU_LOAD_FILE),
-    };
-    let mut buffer = BufReader::new(file);
-    let mut cpu_line = String::new();
+    async fn get_cpu_temp(&mut self) -> Result<()> {
+        for file in self.files.iter_mut() {
+            self.data = 0_f32;
+            file.read_to_string(&mut self.buf).await?;
 
-    buffer
-        .read_line(&mut cpu_line)
-        .expect("Unable to read line.");
+            let value = self.buf.as_str().trim().parse::<f32>()? / 1000.0;
 
-    /*
-     * user nice system idle iowait  irq  softirq steal guest guest_nice
-     * 2    3    4      5    6       7    8       9     10    11
-     */
-    let tokens: Vec<&str> = cpu_line.split(' ').collect();
-    let user = tokens[2].parse::<i32>().expect("0");
-    let nice = tokens[3].parse::<i32>().expect("0");
-    let system = tokens[4].parse::<i32>().expect("0");
-    let idle = tokens[5].parse::<i32>().expect("0");
-    let iowait = tokens[6].parse::<i32>().expect("0");
-    let irq = tokens[7].parse::<i32>().expect("0");
-    let softirq = tokens[8].parse::<i32>().expect("0");
-    let steal = tokens[9].parse::<i32>().expect("0");
-    CpuData {
-        ctime: (user + nice + system + idle + iowait + irq + softirq + steal) as f32,
-        cidle: (idle + iowait) as f32,
+            // Choose max
+            if self.data < value {
+                self.data = value;
+            }
+
+            // Cleanup
+            self.buf.clear();
+            file.rewind().await?;
+        }
+        Ok(())
+    }
+
+    fn in_degree_c(&self) -> f32 {
+        self.data
     }
 }
 
-#[async_std::main]
-async fn main() -> std::io::Result<()> {
-    let mut old_load: CpuData = CpuData::default();
-    let mut interval = stream::interval(Duration::from_secs(1));
-    while interval.next().await.is_some() {
-        println!("prints every four seconds");
-        let temp = get_cpu_temp();
-        let load = get_cpu_load();
-        let cpu = load.clone() - old_load;
-        let cpu_persentage = (cpu.ctime - cpu.cidle) / cpu.ctime * 100.0;
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
+    let mut cpu = CpuLoad::new(CPU_LOAD_FILE).await;
+    let mut temperature = CpuTemperature::find_files(CPU_TEMPERATURE_DIRECTORY).await;
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        (_, _) = tokio::join!(temperature.get_cpu_temp(), cpu.read_data());
 
-        println!("{: >6.2}% {}°C", cpu_persentage, temp);
-        old_load = load;
+        println!(
+            "{: >6.2}% {}°C",
+            cpu.in_percent(),
+            temperature.in_degree_c()
+        );
     }
-    Ok(())
 }
